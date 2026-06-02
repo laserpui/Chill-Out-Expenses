@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Chill Out Expense Tracker</title>
+    <!-- CSS stylesheet -->
+    <link rel="stylesheet" href="style.css">
+    <!-- Lucide Icons CDN -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+
+    <div class="app-container">
+        
+        <!-- App Header -->
+        <header class="app-header">
+            <div class="brand-section">
+                <div class="brand-logo">⛺</div>
+                <div class="brand-info">
+                    <h1>Chill Out</h1>
+                    <p>บันทึกค่าใช้จ่ายกลุ่มท่องเที่ยว</p>
+                </div>
+            </div>
+            <div class="header-actions">
+                <!-- Settings Button Removed -->
+            </div>
+        </header>
+
+        <!-- Simulation Mode Banner -->
+        <div class="demo-banner" id="demo-banner">
+            <i data-lucide="info"></i>
+            <div>
+                <span>จำลองการส่งข้อมูล (Demo Mode)</span>
+                <p style="font-size: 0.7rem; font-weight: normal; margin-top: 2px;">โปรดเปิดลิงก์ผ่าน Google Apps Script หรือใส่ลิงก์ในโค้ดเพื่อส่งข้อมูลจริง</p>
+            </div>
+        </div>
+
+        <!-- Views Wrapper -->
+        
+        <!-- Tab 1: บันทึกค่าใช้จ่าย (Expense Form View) -->
+        <div id="view-expense" class="tab-view">
+            <!-- Main Expense Form Card -->
+            <main class="card">
+                <form id="expense-form" novalidate>
+                    
+                    <!-- 1. วันที่ใช้จ่าย -->
+                    <div class="form-group">
+                        <label class="form-label" for="expense-date">
+                            <i data-lucide="calendar"></i> ณ. วันที่ใช้จ่าย
+                        </label>
+                        <input type="date" id="expense-date" class="form-input" required>
+                    </div>
+
+                    <!-- 2. รายชื่อผู้จ่าย -->
+                    <div class="form-group">
+                        <label class="form-label">
+                            <i data-lucide="user"></i> รายชื่อผู้จ่าย
+                        </label>
+                        <div class="payer-list-container" id="payer-container">
+                            <!-- Chips will be generated here dynamically by JS -->
+                        </div>
+                        <input type="hidden" id="selected-payer" required>
+                    </div>
+
+                    <!-- ระบุชื่อผู้จ่ายกรณีพิเศษ (อื่นๆ) -->
+                    <div class="form-group specify-panel" id="payer-specify-panel">
+                        <label class="form-label" for="payer-specify">
+                            <i data-lucide="user-plus"></i> ระบุชื่อผู้จ่ายเงินเพิ่มเติม
+                        </label>
+                        <input type="text" id="payer-specify" class="form-input" placeholder="ตัวอย่างเช่น: สมชาย, สมหญิง, ลุงพล">
+                    </div>
+
+                    <!-- 3. ประเภทค่าใช้จ่าย -->
+                    <div class="form-group">
+                        <label class="form-label">
+                            <i data-lucide="tag"></i> ประเภทค่าใช้จ่าย
+                        </label>
+                        
+                        <div class="category-grid" id="category-container">
+                            
+                            <!-- Food -->
+                            <div class="category-card" data-category="อาหาร">
+                                <div class="category-icon">🍲</div>
+                                <div>
+                                    <div class="category-name">อาหาร</div>
+                                    <div class="category-desc">มื้อหลัก ของว่าง หมูกระทะ ขนมกินเล่น</div>
+                                </div>
+                            </div>
+
+                            <!-- Drinks (Non-alcohol) -->
+                            <div class="category-card" data-category="เครื่องดื่ม (ไม่มีแอลกอฮอล์)">
+                                <div class="category-icon">🥤</div>
+                                <div>
+                                    <div class="category-name">เครื่องดื่ม (ไม่มีแอลกอฮอล์)</div>
+                                    <div class="category-desc">น้ำดื่ม น้ำอัดลม น้ำแข็ง โซดา ฯลฯ</div>
+                                </div>
+                            </div>
+
+                            <!-- Drinks (Alcohol) -->
+                            <div class="category-card" data-category="เครื่องดื่ม (แอลกอฮอล์)">
+                                <div class="category-icon">🍺</div>
+                                <div>
+                                    <div class="category-name">เครื่องดื่ม (แอลกอฮอล์)</div>
+                                    <div class="category-desc">เหล้า เบียร์ สปาย โซดา ฯลฯ</div>
+                                </div>
+                            </div>
+
+                            <!-- Campsite / Hotel -->
+                            <div class="category-card" data-category="ลานกางเต็นท์ ห้องพัก และบ้านพัก">
+                                <div class="category-icon">⛺</div>
+                                <div>
+                                    <div class="category-name">ลานกางเต็นท์ ห้องพัก บ้านพัก</div>
+                                    <div class="category-desc">รีสอร์ท โฮมสเตย์ จุดกางเต็นท์</div>
+                                </div>
+                            </div>
+
+                            <!-- Others -->
+                            <div class="category-card" data-category="อื่นๆ">
+                                <div class="category-icon">🧩</div>
+                                <div>
+                                    <div class="category-name">อื่นๆ</div>
+                                    <div class="category-desc">ระบุประเภทค่าใช้จ่ายเพิ่มเติม</div>
+                                </div>
+                            </div>
+
+                        </div>
+                        <input type="hidden" id="selected-category" required>
+                    </div>
+
+                    <!-- 4. ระบุ (ประเภทค่าใช้จ่าย) - Details -->
+                    <div class="form-group specify-panel" id="specify-panel">
+                        <label class="form-label" for="expense-specify">
+                            <i data-lucide="pen-line"></i> ระบุรายละเอียดเพิ่มเติม
+                        </label>
+                        <input type="text" id="expense-specify" class="form-input" placeholder="ตัวอย่างเช่น: ส้มตำมื้อเที่ยง, ค่าเบียร์สิงห์, ค่าน้ำมัน">
+                    </div>
+
+                    <!-- 5. ยอดค่าใช้จ่าย -->
+                    <div class="form-group">
+                        <label class="form-label" for="expense-amount">
+                            <i data-lucide="coins"></i> ยอดค่าใช้จ่าย
+                        </label>
+                        <div class="amount-container">
+                            <span class="amount-currency">฿</span>
+                            <input type="number" id="expense-amount" class="form-input amount-input" placeholder="0.00" step="any" min="0.01" inputmode="decimal" required>
+                        </div>
+                    </div>
+
+                    <!-- 6. หมายเหตุ -->
+                    <div class="form-group">
+                        <label class="form-label" for="expense-remarks">
+                            <i data-lucide="message-square"></i> หมายเหตุ (ถ้ามี)
+                        </label>
+                        <textarea id="expense-remarks" class="form-input" style="resize: vertical; min-height: 80px;" placeholder="เช่น จ่ายแยกเฉพาะผู้ชาย, ทอนแล้ว 100 บาท เป็นต้น"></textarea>
+                    </div>
+
+                    <!-- 7. แนบรูปภาพ -->
+                    <div class="form-group">
+                        <label class="form-label">
+                            <i data-lucide="image"></i> แนบรูปภาพ (ใบเสร็จ / บิลค่าใช้จ่าย)
+                        </label>
+                        
+                        <!-- Drag & Drop Zone -->
+                        <div class="upload-dropzone" id="upload-zone">
+                            <div class="upload-icon">
+                                <i data-lucide="camera"></i>
+                            </div>
+                            <div class="upload-text">กดเพื่อถ่ายรูป หรืออัปโหลดไฟล์ใบเสร็จ</div>
+                            <div class="upload-hint">ระบบจะย่อรูปภาพให้โดยอัตโนมัติเพื่อให้โหลดเร็วขึ้น</div>
+                            <input type="file" id="image-file-input" accept="image/*" style="display: none;">
+                        </div>
+
+                        <!-- Image Preview -->
+                        <div class="preview-container" id="preview-container">
+                            <img src="" alt="Receipt Preview" class="preview-image" id="preview-image">
+                            <button type="button" class="btn-remove-image" id="btn-remove-img" title="ลบรูปภาพ">
+                                <i data-lucide="trash-2"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Form Submit Action -->
+                    <div class="form-actions">
+                        <button type="submit" class="btn-submit" id="btn-submit-form">
+                            <span class="spinner" id="submit-spinner"></span>
+                            <span id="btn-submit-text">บันทึกค่าใช้จ่าย</span>
+                            <i data-lucide="send" id="btn-submit-icon"></i>
+                        </button>
+                    </div>
+
+                </form>
+            </main>
+        </div>
+
+        <!-- Tab 2: สรุปรายงานแดชบอร์ด (Real-Time Dashboard View) -->
+        <div id="view-dashboard" class="tab-view" style="display: none;">
+            
+            <!-- Dashboard Stats Summary Grid -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <span class="stat-label">ยอดใช้จ่ายทริปรวม</span>
+                    <h2 class="stat-value" id="dashboard-total">฿0.00</h2>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-label">เฉลี่ยจ่ายต่อคน</span>
+                    <h2 class="stat-value" id="dashboard-average" style="color: var(--color-accent);">฿0.00</h2>
+                </div>
+            </div>
+
+            <!-- Payers Summary Box -->
+            <div class="card dashboard-card">
+                <div class="dashboard-card-header">
+                    <div class="dashboard-card-title">
+                        <i data-lucide="users"></i> ยอดจ่ายเงินรายคน
+                    </div>
+                </div>
+                <div class="dashboard-list" id="dashboard-payers-list">
+                    <!-- Dynamic payer bars loaded here -->
+                </div>
+            </div>
+
+            <!-- Categories Summary Box -->
+            <div class="card dashboard-card">
+                <div class="dashboard-card-header">
+                    <div class="dashboard-card-title">
+                        <i data-lucide="pie-chart"></i> สรุปตามหมวดหมู่
+                    </div>
+                </div>
+                <div class="dashboard-list" id="dashboard-categories-list">
+                    <!-- Dynamic category bars loaded here -->
+                </div>
+            </div>
+
+            <!-- Recent Expenses Log Timeline -->
+            <div class="card dashboard-card">
+                <div class="dashboard-card-header" style="justify-content: space-between;">
+                    <div class="dashboard-card-title">
+                        <i data-lucide="clock"></i> รายการล่าสุด (เรียลไทม์)
+                    </div>
+                    <button type="button" class="btn-refresh" id="btn-refresh-dashboard">
+                        <i data-lucide="rotate-cw" id="refresh-icon"></i>
+                        <span>รีเฟรชสรุป</span>
+                    </button>
+                </div>
+                <div class="recent-logs-list" id="dashboard-recent-list">
+                    <!-- Dynamic recent rows loaded here -->
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Footer Footer -->
+        <footer style="text-align: center; color: var(--text-muted); font-size: 0.78rem; font-weight: 500;">
+            <p>Chill Out Group © 2026. Made with 💚</p>
+        </footer>
+
+    </div>
+
+    <!-- Settings and Password modals removed -->
+
+    <!-- Success Screen Overlay -->
+    <div class="success-screen" id="success-screen">
+        <div class="success-card">
+            <div class="success-animation">
+                <i data-lucide="check"></i>
+            </div>
+            <h3 class="success-title">บันทึกเรียบร้อย!</h3>
+            <p class="success-text" id="success-message">ข้อมูลค่าใช้จ่ายถูกอัปโหลดขึ้น Google Sheets สำเร็จแล้ว</p>
+            <button type="button" class="btn-submit" id="btn-success-reset" style="margin-top: 0;">
+                <i data-lucide="plus-circle"></i> บันทึกรายการใหม่เพิ่ม
+            </button>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toast-container">
+        <div class="toast" id="toast-item">
+            <span class="toast-icon">
+                <i data-lucide="check-circle" id="toast-icon-element"></i>
+            </span>
+            <div class="toast-message" id="toast-text">ข้อความแจ้งเตือน</div>
+        </div>
+    </div>
+
+    <!-- Bottom Navigation Bar -->
+    <nav class="bottom-nav">
+        <button type="button" class="bottom-nav-item active" id="nav-btn-expense">
+            <i data-lucide="pen-tool"></i>
+            <span>บันทึกค่าใช้จ่าย</span>
+        </button>
+        <button type="button" class="bottom-nav-item" id="nav-btn-dashboard">
+            <i data-lucide="bar-chart-3"></i>
+            <span>สรุปรายงาน</span>
+        </button>
+    </nav>
+
+    <!-- Core Script file -->
+    <script src="app.js"></script>
+    <script>
+        // Initialize Lucide Icons
+        lucide.createIcons();
+    </script>
+</body>
+</html>
