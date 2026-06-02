@@ -55,13 +55,9 @@ const elements = {
     payerSpecifyPanel: document.getElementById('payer-specify-panel'),
     payerSpecifyInput: document.getElementById('payer-specify'),
     
-    // Success Screen
-    successScreen: document.getElementById('success-screen'),
-    successMessage: document.getElementById('success-message'),
-    successResetBtn: document.getElementById('btn-success-reset'),
-    
     // Toast
     toastContainer: document.getElementById('toast-container'),
+    toastItem: document.getElementById('toast-item'),
     toastText: document.getElementById('toast-text'),
     toastIcon: document.getElementById('toast-icon-element')
 };
@@ -227,11 +223,6 @@ function setupEventListeners() {
     
     // Form Submit
     elements.form.addEventListener('submit', handleFormSubmission);
-    
-    // Success Dialog Close
-    elements.successResetBtn.addEventListener('click', () => {
-        elements.successScreen.classList.remove('show');
-    });
 }
 
 function selectCategory(category, cardElement) {
@@ -428,7 +419,7 @@ async function handleFormSubmission(e) {
         await new Promise(resolve => setTimeout(resolve, 1500));
         
         setSubmittingState(false);
-        showSuccessOverlay('บันทึกในโหมดจำลองสำเร็จ!<br><span style="font-size:0.85rem; font-weight:normal; color:var(--text-secondary);">โปรดตั้งค่า Google Apps Script Web App URL เพื่อส่งข้อมูลจริงไปยัง Google Sheets</span>');
+        showToast('✅ บันทึกในโหมดจำลองสำเร็จ!', 'success');
         clearForm();
         return;
     }
@@ -446,7 +437,7 @@ async function handleFormSubmission(e) {
         
         // no-cors requests return an opaque response. If fetch resolves, the request reached the Apps Script!
         setSubmittingState(false);
-        showSuccessOverlay('ข้อมูลค่าใช้จ่ายและใบเสร็จของคุณถูกบันทึกลง Google Sheet และ Google Drive เรียบร้อยแล้ว');
+        showToast('✅ บันทึกข้อมูลและใบเสร็จเรียบร้อยแล้ว!', 'success');
         clearForm();
         
     } catch (error) {
@@ -479,13 +470,19 @@ function clearForm() {
     elements.specifyInput.value = '';
     elements.payerSpecifyInput.value = '';
     
+    // Reset category selection
+    STATE.selectedCategory = '';
+    if (elements.selectedCategoryInput) elements.selectedCategoryInput.value = '';
+    if (elements.specifyPanel) elements.specifyPanel.classList.remove('show');
+    if (elements.specifyInput) elements.specifyInput.removeAttribute('required');
+    if (elements.categoryContainer) {
+        elements.categoryContainer.querySelectorAll('.category-card').forEach(card => {
+            card.classList.remove('active');
+        });
+    }
+    
     // Remove attached image
     removeAttachedImage();
-}
-
-function showSuccessOverlay(messageHTML) {
-    elements.successMessage.innerHTML = messageHTML;
-    elements.successScreen.classList.add('show');
 }
 
 // ----------------------------------------------------
