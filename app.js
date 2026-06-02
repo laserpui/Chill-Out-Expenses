@@ -1,5 +1,5 @@
 // Core Application State & Constants
-const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz-Gi-5VmPu_fZoBJg_XyI77WitITUGnGYbOazEODyyKf3agddeRfnmOvjipg2Ibn8N1w/exec"; // <-- ใส่ลิงก์ที่เผยแพร่จาก Apps Script ที่นี่ (เช่น https://script.google.com/macros/s/.../exec)
+const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwLyc6OAarphIY_msQ5Ztp-fl_3xjhW2t5SfGpSUsNdDoI5t6QknEspRDgNn7rvTP4QIQ/exec"; // <-- ใส่ลิงก์ที่เผยแพร่จาก Apps Script ที่นี่ (เช่น https://script.google.com/macros/s/.../exec)
 const PAYER_NAMES = ['ปุ๋ย + แอม', 'จุ๊บ + บี๋', 'โหน่ง + ดา', 'เฮียฮิง']; // <-- เพิ่ม/ลด/แก้ไขรายชื่อตรงนี้ได้เลย!
 
 const STATE = {
@@ -45,7 +45,6 @@ const elements = {
     
     // Dashboard elements
     dashboardTotal: document.getElementById('dashboard-total'),
-    dashboardAverage: document.getElementById('dashboard-average'),
     dashboardPayersList: document.getElementById('dashboard-payers-list'),
     dashboardCategoriesList: document.getElementById('dashboard-categories-list'),
     dashboardRecentList: document.getElementById('dashboard-recent-list'),
@@ -464,24 +463,42 @@ function setSubmittingState(isSubmitting) {
 }
 
 function clearForm() {
-    // Reset inputs, but keep Date and Payer selected for convenient batch inputs
+    // 1. Reset text & numerical inputs
     elements.amountInput.value = '';
     elements.remarksInput.value = '';
-    elements.specifyInput.value = '';
-    elements.payerSpecifyInput.value = '';
     
-    // Reset category selection
+    // 2. Reset date to today
+    initDateInput();
+    
+    // 3. Reset payer selection completely (deselect chips, hide custom input)
+    STATE.selectedPayer = '';
+    if (elements.selectedPayerInput) elements.selectedPayerInput.value = '';
+    if (elements.payerSpecifyPanel) elements.payerSpecifyPanel.classList.remove('show');
+    if (elements.payerSpecifyInput) {
+        elements.payerSpecifyInput.value = '';
+        elements.payerSpecifyInput.removeAttribute('required');
+    }
+    if (elements.payerContainer) {
+        elements.payerContainer.querySelectorAll('.payer-chip').forEach(chip => {
+            chip.classList.remove('active');
+        });
+    }
+    
+    // 4. Reset category selection completely (deselect chips, hide details specify)
     STATE.selectedCategory = '';
     if (elements.selectedCategoryInput) elements.selectedCategoryInput.value = '';
     if (elements.specifyPanel) elements.specifyPanel.classList.remove('show');
-    if (elements.specifyInput) elements.specifyInput.removeAttribute('required');
+    if (elements.specifyInput) {
+        elements.specifyInput.value = '';
+        elements.specifyInput.removeAttribute('required');
+    }
     if (elements.categoryContainer) {
         elements.categoryContainer.querySelectorAll('.category-card').forEach(card => {
             card.classList.remove('active');
         });
     }
     
-    // Remove attached image
+    // 5. Remove attached image
     removeAttachedImage();
 }
 
@@ -626,7 +643,6 @@ async function fetchDashboardData() {
 function renderDashboardSkeleton() {
     // Render skeleton placeholders for values
     elements.dashboardTotal.innerHTML = '<span class="skeleton-box skeleton-text" style="display:inline-block; width:100px; height:24px;"></span>';
-    elements.dashboardAverage.innerHTML = '<span class="skeleton-box skeleton-text" style="display:inline-block; width:80px; height:24px;"></span>';
     
     // Skeleton list rows
     const listSkeletonHTML = `
@@ -652,7 +668,6 @@ function renderDashboardSkeleton() {
 
 function renderDashboardError() {
     elements.dashboardTotal.textContent = '฿0.00';
-    elements.dashboardAverage.textContent = '฿0.00';
     elements.dashboardPayersList.innerHTML = '<div style="text-align:center; padding:12px; font-size:0.8rem; color:var(--text-muted);">โหลดข้อมูลรายคนไม่สำเร็จ</div>';
     elements.dashboardCategoriesList.innerHTML = '<div style="text-align:center; padding:12px; font-size:0.8rem; color:var(--text-muted);">โหลดข้อมูลประเภทไม่สำเร็จ</div>';
     elements.dashboardRecentList.innerHTML = '<div style="text-align:center; padding:20px; font-size:0.8rem; color:var(--text-muted);">ไม่สามารถดึงข้อมูลรายการล่าสุดได้</div>';
@@ -663,10 +678,6 @@ function renderDashboard(data) {
     
     // 1. Render Stats
     elements.dashboardTotal.textContent = `฿${total.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-    
-    const payersCount = STATE.config.payers.length || 1;
-    const average = total / payersCount;
-    elements.dashboardAverage.textContent = `฿${average.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     
     // 2. Render Payer Progress Bars
     elements.dashboardPayersList.innerHTML = '';
