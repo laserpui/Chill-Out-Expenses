@@ -1,6 +1,6 @@
 // Core Application State & Constants
 const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz-Gi-5VmPu_fZoBJg_XyI77WitITUGnGYbOazEODyyKf3agddeRfnmOvjipg2Ibn8N1w/exec"; // <-- ใส่ลิงก์ที่เผยแพร่จาก Apps Script ที่นี่ (เช่น https://script.google.com/macros/s/.../exec)
-const PAYER_NAMES = ['ปุย', 'แอน', 'เก่ง', 'บอย', 'พลอย']; // <-- เพิ่ม/ลด/แก้ไขรายชื่อตรงนี้ได้เลย!
+const PAYER_NAMES = ['ปุ๋ย + แอม', 'จุ๊บ + บี๋', 'โหน่ง + ดา', 'เฮียฮิง']; // <-- เพิ่ม/ลด/แก้ไขรายชื่อตรงนี้ได้เลย!
 
 const STATE = {
     config: {
