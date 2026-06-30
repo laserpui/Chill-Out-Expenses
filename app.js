@@ -1,11 +1,13 @@
 // Core Application State & Constants
-const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwLyc6OAarphIY_msQ5Ztp-fl_3xjhW2t5SfGpSUsNdDoI5t6QknEspRDgNn7rvTP4QIQ/exec"; // <-- ใส่ลิงก์ที่เผยแพร่จาก Apps Script ที่นี่ (เช่น https://script.google.com/macros/s/.../exec)
+const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzX2_pyYUaFgWyQsLhspq6V3_G0YHOjGiXmk_sokeN5zXRF2BwVZbx04Nt4xXSRnHH7hQ/exec"; // <-- ใส่ลิงก์ที่เผยแพร่จาก Apps Script ที่นี่ (เช่น https://script.google.com/macros/s/.../exec)
 const PAYER_NAMES = ['ปุ๋ย + แอม', 'จุ๊บ + บี๋', 'โหน่ง + ดา', 'เฮียฮิง']; // <-- เพิ่ม/ลด/แก้ไขรายชื่อตรงนี้ได้เลย!
+const ADMIN_PASSWORD = 'Admin1234';
 
 const STATE = {
     config: {
         apiUrl: '',
-        payers: []
+        payers: [],
+        nonDrinkers: []
     },
     selectedPayer: '',
     selectedCategory: '',
@@ -45,10 +47,21 @@ const elements = {
     
     // Dashboard elements
     dashboardTotal: document.getElementById('dashboard-total'),
+    dashboardSplitTotal: document.getElementById('dashboard-split-total'),
+    dashboardSplitSummary: document.getElementById('dashboard-split-summary'),
     dashboardPayersList: document.getElementById('dashboard-payers-list'),
     dashboardCategoriesList: document.getElementById('dashboard-categories-list'),
     dashboardRecentList: document.getElementById('dashboard-recent-list'),
     refreshDashboardBtn: document.getElementById('btn-refresh-dashboard'),
+    participantNameInput: document.getElementById('participant-name-input'),
+    addParticipantBtn: document.getElementById('btn-add-participant'),
+    participantList: document.getElementById('participant-list'),
+    participantSaveStatus: document.getElementById('participant-save-status'),
+    openSheetBtn: document.getElementById('btn-open-sheet'),
+    adminModal: document.getElementById('admin-password-modal'),
+    adminPasswordInput: document.getElementById('admin-password-input'),
+    confirmAdminBtn: document.getElementById('btn-confirm-admin-modal'),
+    closeAdminBtn: document.getElementById('btn-close-admin-modal'),
     
     // Payer custom specify elements
     payerSpecifyPanel: document.getElementById('payer-specify-panel'),
@@ -68,8 +81,10 @@ document.addEventListener('DOMContentLoaded', () => {
     loadSettings();
     initDateInput();
     renderPayerChips();
+    renderParticipantManager();
     setupEventListeners();
     updateUIState();
+    loadParticipantConfig();
 });
 
 // Set default date to today in local time format YYYY-MM-DD
@@ -117,6 +132,222 @@ function updateUIState() {
 // ----------------------------------------------------
 // UI Rendering Functions
 // ----------------------------------------------------
+function normalizeParticipantNames(names) {
+    const seen = new Set();
+    const result = [];
+    (names || []).forEach(name => {
+        const cleanName = String(name || '').trim();
+        if (cleanName && !seen.has(cleanName)) {
+            seen.add(cleanName);
+            result.push(cleanName);
+        }
+    });
+    return result;
+}
+
+function applyParticipantConfig(config = {}) {
+    const people = normalizeParticipantNames(config.people || config.participants || STATE.config.payers || PAYER_NAMES);
+    const nonDrinkers = normalizeParticipantNames(config.nonDrinkers || config.nonAlcoholParticipants || [])
+        .filter(name => people.includes(name));
+
+    STATE.config.payers = people.length ? people : [...PAYER_NAMES];
+    STATE.config.nonDrinkers = nonDrinkers;
+    renderPayerChips();
+    renderParticipantManager();
+}
+
+function requestJsonp(action, params = {}, onSuccess, onError) {
+    if (!STATE.config.apiUrl) {
+        if (onError) onError(new Error('ยังไม่ได้ตั้งค่า Apps Script URL'));
+        return;
+    }
+
+    const callbackName = 'chillout_api_cb_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
+    const scriptId = 'jsonp_script_' + callbackName;
+    const script = document.createElement('script');
+    const connector = STATE.config.apiUrl.indexOf('?') > -1 ? '&' : '?';
+    const query = new URLSearchParams({ action, callback: callbackName, ...params });
+
+    window[callbackName] = function(data) {
+        const scriptEl = document.getElementById(scriptId);
+        if (scriptEl) scriptEl.remove();
+        delete window[callbackName];
+        if (onSuccess) onSuccess(data);
+    };
+
+    script.id = scriptId;
+    script.onerror = function() {
+        const scriptEl = document.getElementById(scriptId);
+        if (scriptEl) scriptEl.remove();
+        delete window[callbackName];
+        if (onError) onError(new Error('เชื่อมต่อหลังบ้านไม่สำเร็จ'));
+    };
+    script.src = `${STATE.config.apiUrl}${connector}${query.toString()}`;
+    document.body.appendChild(script);
+}
+
+function setParticipantStatus(text) {
+    if (elements.participantSaveStatus) {
+        elements.participantSaveStatus.textContent = text;
+    }
+}
+
+function loadParticipantConfig() {
+    renderParticipantManager();
+    if (!STATE.config.apiUrl) return;
+
+    setParticipantStatus('กำลังโหลดรายชื่อ...');
+    requestJsonp('getSplitConfig', {}, (data) => {
+        if (data && data.status === 'success' && data.config) {
+            applyParticipantConfig(data.config);
+            setParticipantStatus('เชื่อมต่อรายชื่อแล้ว');
+        } else {
+            setParticipantStatus('ใช้รายชื่อเริ่มต้น');
+        }
+    }, () => {
+        setParticipantStatus('โหลดรายชื่อไม่สำเร็จ');
+    });
+}
+
+function saveParticipantConfig({ refreshDashboard = true } = {}) {
+    const config = {
+        people: STATE.config.payers,
+        nonDrinkers: STATE.config.nonDrinkers
+    };
+
+    renderPayerChips();
+    renderParticipantManager();
+
+    if (!STATE.config.apiUrl) {
+        setParticipantStatus('บันทึกเฉพาะเครื่องนี้');
+        return;
+    }
+
+    setParticipantStatus('กำลังบันทึก...');
+    requestJsonp('saveSplitConfig', { payload: JSON.stringify(config) }, (data) => {
+        if (data && data.status === 'success' && data.config) {
+            applyParticipantConfig(data.config);
+            setParticipantStatus('บันทึกรายชื่อแล้ว');
+            if (refreshDashboard && elements.viewDashboard.style.display !== 'none') {
+                fetchDashboardData();
+            }
+        } else {
+            setParticipantStatus('บันทึกไม่สำเร็จ');
+            showToast((data && data.message) || 'บันทึกรายชื่อไม่สำเร็จ', 'error');
+        }
+    }, () => {
+        setParticipantStatus('บันทึกไม่สำเร็จ');
+        showToast('เชื่อมต่อหลังบ้านเพื่อบันทึกรายชื่อไม่สำเร็จ', 'error');
+    });
+}
+
+function renderParticipantManager() {
+    if (!elements.participantList) return;
+
+    const people = STATE.config.payers || [];
+    elements.participantList.innerHTML = '';
+
+    if (!people.length) {
+        elements.participantList.innerHTML = '<div class="participant-empty">ยังไม่มีรายชื่อคนหาร</div>';
+        return;
+    }
+
+    people.forEach((name, index) => {
+        const item = document.createElement('div');
+        item.className = 'participant-item';
+        item.innerHTML = `
+            <input class="form-input participant-name-edit" value="${escapeHtml(name)}" aria-label="แก้ไขชื่อ ${escapeHtml(name)}">
+            <label class="participant-nondrinker">
+                <input type="checkbox" ${STATE.config.nonDrinkers.includes(name) ? 'checked' : ''}>
+                ไม่ดื่ม
+            </label>
+            <button type="button" class="btn-participant-remove" title="ลบรายชื่อ">
+                <i data-lucide="trash-2"></i>
+            </button>
+        `;
+
+        const nameInput = item.querySelector('.participant-name-edit');
+        nameInput.addEventListener('change', () => renameParticipant(index, nameInput.value));
+        nameInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') nameInput.blur();
+        });
+
+        item.querySelector('.participant-nondrinker input').addEventListener('change', (e) => {
+            toggleNonDrinker(index, e.target.checked);
+        });
+        item.querySelector('.btn-participant-remove').addEventListener('click', () => removeParticipant(index));
+        elements.participantList.appendChild(item);
+    });
+
+    lucide.createIcons();
+}
+
+function addParticipant() {
+    const name = elements.participantNameInput.value.trim();
+    if (!name) {
+        showToast('กรุณากรอกชื่อก่อน', 'error');
+        elements.participantNameInput.focus();
+        return;
+    }
+    if (STATE.config.payers.includes(name)) {
+        showToast('มีชื่อนี้อยู่แล้ว', 'error');
+        elements.participantNameInput.focus();
+        return;
+    }
+
+    STATE.config.payers.push(name);
+    elements.participantNameInput.value = '';
+    saveParticipantConfig();
+}
+
+function renameParticipant(index, nextName) {
+    const oldName = STATE.config.payers[index];
+    const cleanName = String(nextName || '').trim();
+    if (!oldName) return;
+    if (!cleanName) {
+        showToast('ชื่อห้ามว่าง', 'error');
+        renderParticipantManager();
+        return;
+    }
+    if (STATE.config.payers.some((name, personIndex) => personIndex !== index && name === cleanName)) {
+        showToast('มีชื่อนี้อยู่แล้ว', 'error');
+        renderParticipantManager();
+        return;
+    }
+
+    STATE.config.payers[index] = cleanName;
+    STATE.config.nonDrinkers = STATE.config.nonDrinkers.map(name => name === oldName ? cleanName : name);
+    if (STATE.selectedPayer === oldName) {
+        STATE.selectedPayer = cleanName;
+        elements.selectedPayerInput.value = cleanName;
+    }
+    saveParticipantConfig();
+}
+
+function removeParticipant(index) {
+    const name = STATE.config.payers[index];
+    if (!name) return;
+
+    STATE.config.payers.splice(index, 1);
+    STATE.config.nonDrinkers = STATE.config.nonDrinkers.filter(item => item !== name);
+    if (STATE.selectedPayer === name) {
+        STATE.selectedPayer = '';
+        elements.selectedPayerInput.value = '';
+    }
+    saveParticipantConfig();
+}
+
+function toggleNonDrinker(index, checked) {
+    const name = STATE.config.payers[index];
+    if (!name) return;
+
+    if (checked && !STATE.config.nonDrinkers.includes(name)) {
+        STATE.config.nonDrinkers.push(name);
+    } else if (!checked) {
+        STATE.config.nonDrinkers = STATE.config.nonDrinkers.filter(item => item !== name);
+    }
+    saveParticipantConfig();
+}
 function renderPayerChips() {
     elements.payerContainer.innerHTML = '';
     
@@ -186,6 +417,20 @@ function setupEventListeners() {
     
     // Dashboard Refresh
     elements.refreshDashboardBtn.addEventListener('click', fetchDashboardData);
+    elements.addParticipantBtn.addEventListener('click', addParticipant);
+    elements.participantNameInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') addParticipant();
+    });
+    elements.openSheetBtn.addEventListener('click', openAdminModal);
+    elements.closeAdminBtn.addEventListener('click', closeAdminModal);
+    elements.confirmAdminBtn.addEventListener('click', handleOpenSheetRequest);
+    elements.adminPasswordInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') handleOpenSheetRequest();
+        if (e.key === 'Escape') closeAdminModal();
+    });
+    elements.adminModal.addEventListener('click', (e) => {
+        if (e.target === elements.adminModal) closeAdminModal();
+    });
 
     // Categories Grid Selection
     elements.categoryContainer.querySelectorAll('.category-card').forEach(card => {
@@ -539,6 +784,60 @@ function showToast(message, type = 'success') {
     }, 4000);
 }
 
+function openAdminModal() {
+    elements.adminPasswordInput.value = '';
+    openModal(elements.adminModal);
+    setTimeout(() => elements.adminPasswordInput.focus(), 80);
+}
+
+function closeAdminModal() {
+    closeModal(elements.adminModal);
+}
+
+function handleOpenSheetRequest() {
+    const password = elements.adminPasswordInput.value.trim();
+    if (password !== ADMIN_PASSWORD) {
+        showToast('รหัส Admin ไม่ถูกต้อง', 'error');
+        elements.adminPasswordInput.focus();
+        return;
+    }
+    openGoogleSheet(password);
+}
+
+function openGoogleSheet(password) {
+    if (!STATE.config.apiUrl) {
+        showToast('ยังไม่ได้ตั้งค่า Apps Script URL สำหรับเปิด Google Sheet', 'error');
+        return;
+    }
+
+    const callbackName = 'chillout_sheet_cb_' + Date.now();
+    const scriptId = 'sheet_link_script_' + Date.now();
+    window[callbackName] = function(data) {
+        const scriptEl = document.getElementById(scriptId);
+        if (scriptEl) scriptEl.remove();
+        delete window[callbackName];
+
+        if (data.status === 'success' && data.url) {
+            closeAdminModal();
+            window.open(data.url, '_blank', 'noopener');
+        } else {
+            showToast(data.message || 'เปิด Google Sheet ไม่สำเร็จ', 'error');
+        }
+    };
+
+    const script = document.createElement('script');
+    script.id = scriptId;
+    script.onerror = function() {
+        const scriptEl = document.getElementById(scriptId);
+        if (scriptEl) scriptEl.remove();
+        delete window[callbackName];
+        showToast('เชื่อมต่อหลังบ้านเพื่อเปิด Google Sheet ไม่สำเร็จ', 'error');
+    };
+    const connector = STATE.config.apiUrl.indexOf('?') > -1 ? '&' : '?';
+    script.src = `${STATE.config.apiUrl}${connector}action=sheetLink&password=${encodeURIComponent(password)}&callback=${callbackName}`;
+    document.body.appendChild(script);
+}
+
 // ----------------------------------------------------
 // Navigation Tab Switcher & Dashboard Rendering
 // ----------------------------------------------------
@@ -594,7 +893,23 @@ async function fetchDashboardData() {
                 { date: '2026-06-01', payer: 'เก่ง', category: 'ลานกางเต็นท์ ห้องพัก และบ้านพัก', details: 'ค่ากางเต็นท์อุทยาน', amount: 500, remarks: 'คืนที่ 1', imageUrl: '' },
                 { date: '2026-05-31', payer: 'ปุย', category: 'ลานกางเต็นท์ ห้องพัก และบ้านพัก', details: 'บ้านพักหลังริมน้ำ', amount: 600, remarks: 'มัดจำล่วงหน้า', imageUrl: '' },
                 { date: '2026-05-31', payer: 'แอน', category: 'เครื่องดื่ม (ไม่มีแอลกอฮอล์)', details: 'น้ำเปล่า โค้ก น้ำแข็ง ฯลฯ', amount: 280, remarks: '', imageUrl: '' }
-            ]
+            ],
+            splitSummary: {
+                days: [
+                    { date: '2026-05-31', participants: ['ปุย', 'แอน'], total: 880, regularTotal: 880, alcoholTotal: 0 },
+                    { date: '2026-06-01', participants: ['ปุย', 'แอน', 'เก่ง'], total: 1420, regularTotal: 500, alcoholTotal: 920 },
+                    { date: '2026-06-02', participants: ['ปุย', 'แอน', 'เก่ง'], total: 1250, regularTotal: 1250, alcoholTotal: 0 }
+                ],
+                people: [
+                    { name: 'ปุย', paid: 1850, share: 1316.67, balance: 533.33 },
+                    { name: 'แอน', paid: 1200, share: 1776.67, balance: -576.67 },
+                    { name: 'เก่ง', paid: 500, share: 456.67, balance: 43.33 }
+                ],
+                settlements: [
+                    { from: 'แอน', to: 'ปุย', amount: 533.33 },
+                    { from: 'แอน', to: 'เก่ง', amount: 43.33 }
+                ]
+            }
         };
         
         renderDashboard(mockData);
@@ -643,6 +958,7 @@ async function fetchDashboardData() {
 function renderDashboardSkeleton() {
     // Render skeleton placeholders for values
     elements.dashboardTotal.innerHTML = '<span class="skeleton-box skeleton-text" style="display:inline-block; width:100px; height:24px;"></span>';
+    elements.dashboardSplitTotal.innerHTML = '<span class="skeleton-box skeleton-text" style="display:inline-block; width:100px; height:24px;"></span>';
     
     // Skeleton list rows
     const listSkeletonHTML = `
@@ -655,6 +971,7 @@ function renderDashboardSkeleton() {
             <div class="skeleton-box skeleton-progress"></div>
         </div>
     `;
+    elements.dashboardSplitSummary.innerHTML = listSkeletonHTML;
     elements.dashboardPayersList.innerHTML = listSkeletonHTML;
     elements.dashboardCategoriesList.innerHTML = listSkeletonHTML;
     
@@ -668,16 +985,104 @@ function renderDashboardSkeleton() {
 
 function renderDashboardError() {
     elements.dashboardTotal.textContent = '฿0.00';
+    elements.dashboardSplitTotal.textContent = '฿0.00';
+    elements.dashboardSplitSummary.innerHTML = '<div style="text-align:center; padding:12px; font-size:0.8rem; color:var(--text-muted);">โหลดข้อมูลการหารค่าใช้จ่ายไม่สำเร็จ</div>';
     elements.dashboardPayersList.innerHTML = '<div style="text-align:center; padding:12px; font-size:0.8rem; color:var(--text-muted);">โหลดข้อมูลรายคนไม่สำเร็จ</div>';
     elements.dashboardCategoriesList.innerHTML = '<div style="text-align:center; padding:12px; font-size:0.8rem; color:var(--text-muted);">โหลดข้อมูลประเภทไม่สำเร็จ</div>';
     elements.dashboardRecentList.innerHTML = '<div style="text-align:center; padding:20px; font-size:0.8rem; color:var(--text-muted);">ไม่สามารถดึงข้อมูลรายการล่าสุดได้</div>';
 }
 
+function formatCurrency(value, digits = 2) {
+    return `฿${Number(value || 0).toLocaleString('th-TH', { minimumFractionDigits: digits, maximumFractionDigits: digits })}`;
+}
+
+function renderSplitSummary(splitSummary, fallbackTotal) {
+    const summary = splitSummary || { days: [], people: [], settlements: [] };
+    elements.dashboardSplitTotal.textContent = formatCurrency(fallbackTotal || 0);
+    elements.dashboardSplitSummary.innerHTML = '';
+
+    if (!summary.days.length && !summary.people.length) {
+        elements.dashboardSplitSummary.innerHTML = '<div style="text-align:center; padding:16px; font-size:0.8rem; color:var(--text-muted);">ยังไม่มีข้อมูลสำหรับคำนวณหารค่าใช้จ่าย หรือหลังบ้านยังไม่ได้อัปเดตฟังก์ชัน splitSummary</div>';
+        return;
+    }
+
+    const dayList = document.createElement('div');
+    dayList.className = 'split-day-list';
+    summary.days.forEach(day => {
+        const participantText = (day.participants || []).join(', ') || '-';
+        const row = document.createElement('div');
+        row.className = 'split-day-row split-day-row-stack';
+        row.innerHTML = `
+            <div class="split-row-main">
+                <div>
+                    <div class="split-day-date">${day.date}</div>
+                    <div class="split-day-meta">${(day.participants || []).length} คน: ${participantText}</div>
+                    <div class="split-day-meta">ค่าใช้จ่ายทั่วไป ${formatCurrency(day.regularTotal, 0)} • แอลกอฮอล์ ${formatCurrency(day.alcoholTotal, 0)}</div>
+                </div>
+                <strong>${formatCurrency(day.total)}</strong>
+            </div>
+        `;
+        dayList.appendChild(row);
+    });
+    elements.dashboardSplitSummary.appendChild(dayList);
+
+    const peopleList = document.createElement('div');
+    peopleList.className = 'split-people-list';
+    summary.people.forEach(person => {
+        const balanceClass = person.balance >= 0 ? 'positive' : 'negative';
+        const balanceText = person.balance >= 0 ? 'ควรรับคืน' : 'ต้องจ่ายเพิ่ม';
+        const row = document.createElement('div');
+        row.className = 'split-person-row';
+        row.innerHTML = `
+            <div>
+                <div class="split-person-name">${person.name}</div>
+                <div class="split-day-meta">จ่ายแล้ว ${formatCurrency(person.paid, 0)} • ต้องรับผิดชอบ ${formatCurrency(person.share, 0)}</div>
+            </div>
+            <div class="split-balance ${balanceClass}">
+                <span>${balanceText}</span>
+                <strong>${formatCurrency(Math.abs(person.balance))}</strong>
+            </div>
+        `;
+        peopleList.appendChild(row);
+    });
+    elements.dashboardSplitSummary.appendChild(peopleList);
+
+    const settlements = summary.settlements || [];
+    const settleList = document.createElement('div');
+    settleList.className = 'split-settlement-list';
+    const title = document.createElement('div');
+    title.className = 'split-section-title';
+    title.textContent = 'แนะนำการเคลียร์เงิน';
+    settleList.appendChild(title);
+
+    if (!settlements.length) {
+        const empty = document.createElement('div');
+        empty.className = 'split-empty-note';
+        empty.textContent = 'ยอดจ่ายสมดุลแล้ว หรือยังไม่มีรายการที่ต้องเคลียร์';
+        settleList.appendChild(empty);
+    } else {
+        settlements.forEach(item => {
+            const row = document.createElement('div');
+            row.className = 'split-settlement-row';
+            row.innerHTML = `<span>${item.from} → ${item.to}</span><strong>${formatCurrency(item.amount)}</strong>`;
+            settleList.appendChild(row);
+        });
+    }
+    elements.dashboardSplitSummary.appendChild(settleList);
+}
+
 function renderDashboard(data) {
+    data = data || {};
     const total = data.total || 0;
+    const byPayer = data.byPayer || {};
+    const byCategory = data.byCategory || {};
+    if (data.splitConfig) {
+        applyParticipantConfig(data.splitConfig);
+    }
     
     // 1. Render Stats
     elements.dashboardTotal.textContent = `฿${total.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    renderSplitSummary(data.splitSummary, total);
     
     // 2. Render Payer Progress Bars
     elements.dashboardPayersList.innerHTML = '';
@@ -686,17 +1091,17 @@ function renderDashboard(data) {
     let highestPayerPaid = 0;
     
     // ดึงรายชื่อคนจ่ายเงินที่ไม่ซ้ำทั้งหมด (จากค่าคงที่ในโค้ด + ดึงอัตโนมัติจากข้อมูลในตารางชีต)
-    const allPayers = Array.from(new Set([...STATE.config.payers, ...Object.keys(data.byPayer)]));
+    const allPayers = Array.from(new Set([...STATE.config.payers, ...Object.keys(byPayer)]));
     
     allPayers.forEach(name => {
         if (!name || name === '-') return;
-        const paid = data.byPayer[name] || 0;
+        const paid = byPayer[name] || 0;
         if (paid > highestPayerPaid) highestPayerPaid = paid;
     });
     
     allPayers.forEach(name => {
         if (!name || name === '-') return;
-        const paid = data.byPayer[name] || 0;
+        const paid = byPayer[name] || 0;
         const percent = highestPayerPaid > 0 ? (paid / highestPayerPaid) * 100 : 0;
         
         const row = document.createElement('div');
@@ -732,7 +1137,7 @@ function renderDashboard(data) {
     ];
     
     categories.forEach(cat => {
-        const spent = data.byCategory[cat] || 0;
+        const spent = byCategory[cat] || 0;
         const percent = total > 0 ? (spent / total) * 100 : 0;
         
         const row = document.createElement('div');

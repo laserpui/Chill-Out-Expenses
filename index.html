@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="th">
 <head>
     <meta charset="UTF-8">
@@ -202,6 +202,44 @@
                     <span class="stat-label">ยอดค่าใช้จ่ายทริปรวมทั้งหมด</span>
                     <h2 class="stat-value" id="dashboard-total">฿0.00</h2>
                 </div>
+                <div class="stat-card">
+                    <span class="stat-label">ยอดที่ต้องหารรวม</span>
+                    <h2 class="stat-value" id="dashboard-split-total">฿0.00</h2>
+                </div>
+            </div>
+
+            <!-- Participant Management Box -->
+            <div class="card dashboard-card">
+                <div class="dashboard-card-header" style="justify-content: space-between;">
+                    <div class="dashboard-card-title">
+                        <i data-lucide="user-round-plus"></i> รายชื่อคนหาร
+                    </div>
+                    <span class="participant-save-status" id="participant-save-status">พร้อมใช้งาน</span>
+                </div>
+                <div class="participant-add-row">
+                    <input type="text" id="participant-name-input" class="form-input" placeholder="เพิ่มชื่อ เช่น ปุ๋ย">
+                    <button type="button" class="btn-refresh" id="btn-add-participant">
+                        <i data-lucide="plus"></i>
+                        <span>เพิ่ม</span>
+                    </button>
+                </div>
+                <div class="participant-helper">ติ๊ก “ไม่ดื่ม” เพื่อไม่ให้คนนั้นถูกหารรายการแอลกอฮอล์</div>
+                <div class="participant-list" id="participant-list"></div>
+            </div>
+            <!-- Split Calculation Box -->
+            <div class="card dashboard-card">
+                <div class="dashboard-card-header" style="justify-content: space-between;">
+                    <div class="dashboard-card-title">
+                        <i data-lucide="calculator"></i> สรุปหารค่าใช้จ่าย
+                    </div>
+                    <button type="button" class="btn-refresh" id="btn-open-sheet">
+                        <i data-lucide="lock-keyhole"></i>
+                        <span>เปิด Google Sheet</span>
+                    </button>
+                </div>
+                <div class="split-summary-list" id="dashboard-split-summary">
+                    <!-- Dynamic split calculation loaded here -->
+                </div>
             </div>
 
             <!-- Payers Summary Box -->
@@ -253,7 +291,23 @@
 
     </div>
 
-    <!-- Settings and Password modals removed -->
+    <!-- Admin Password Modal -->
+    <div class="modal-overlay modal-center" id="admin-password-modal" aria-hidden="true">
+        <div class="modal-content admin-modal-content">
+            <div class="modal-header">
+                <div class="modal-title"><i data-lucide="lock-keyhole"></i> Admin</div>
+                <button type="button" class="modal-close" id="btn-close-admin-modal" aria-label="ปิด"><i data-lucide="x"></i></button>
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="admin-password-input">รหัสเปิด Google Sheet</label>
+                <input type="password" id="admin-password-input" class="form-input" placeholder="ใส่รหัส Admin">
+            </div>
+            <button type="button" class="btn-submit" id="btn-confirm-admin-modal">
+                <span>ยืนยันและเปิด Sheet</span>
+                <i data-lucide="external-link"></i>
+            </button>
+        </div>
+    </div>
 
 
     <!-- Toast Container -->

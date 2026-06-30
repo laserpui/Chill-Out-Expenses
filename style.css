@@ -1197,3 +1197,220 @@ h1, h2, h3, h4, h5, h6 {
     margin-bottom: 12px;
 }
 
+
+/* Split Calculation Summary */
+.split-summary-list {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+
+.split-day-list,
+.split-people-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.split-day-row,
+.split-person-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 12px;
+    border: 1px solid rgba(96, 153, 117, 0.16);
+    border-radius: var(--radius-sm);
+    background: rgba(255, 255, 255, 0.58);
+}
+
+.split-day-date,
+.split-person-name {
+    font-family: var(--font-heading);
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.split-day-meta {
+    margin-top: 3px;
+    font-size: 0.74rem;
+    color: var(--text-muted);
+    line-height: 1.45;
+}
+
+.split-balance {
+    text-align: right;
+    white-space: nowrap;
+}
+
+.split-balance span {
+    display: block;
+    font-size: 0.68rem;
+    color: var(--text-muted);
+    margin-bottom: 2px;
+}
+
+.split-balance.positive strong {
+    color: var(--color-primary);
+}
+
+.split-balance.negative strong {
+    color: #C8644F;
+}
+
+.admin-modal-content .btn-submit {
+    margin-top: 4px;
+}
+.split-row-main {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    width: 100%;
+}
+
+.split-day-row-stack {
+    align-items: stretch;
+}
+
+.split-section-title {
+    font-family: var(--font-heading);
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin: 2px 0 8px;
+}
+
+.split-settlement-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding-top: 2px;
+}
+
+.split-settlement-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 12px;
+    border-radius: var(--radius-sm);
+    background: var(--color-primary-light);
+    font-size: 0.8rem;
+    color: var(--text-primary);
+}
+
+.split-settlement-row strong {
+    color: var(--color-primary);
+    white-space: nowrap;
+}
+
+.split-empty-note {
+    padding: 12px;
+    text-align: center;
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    border: 1px dashed rgba(96, 153, 117, 0.24);
+    border-radius: var(--radius-sm);
+}
+/* Participant Management */
+.participant-add-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px;
+    align-items: center;
+}
+
+.participant-helper,
+.participant-save-status {
+    font-size: 0.74rem;
+    color: var(--text-muted);
+}
+
+.participant-save-status {
+    white-space: nowrap;
+}
+
+.participant-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 14px;
+}
+
+.participant-item {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    gap: 10px;
+    align-items: center;
+    padding: 10px;
+    border: 1px solid rgba(96, 153, 117, 0.16);
+    border-radius: var(--radius-sm);
+    background: rgba(255, 255, 255, 0.58);
+}
+
+.participant-item .form-input {
+    min-height: 38px;
+    padding: 8px 10px;
+    font-size: 0.84rem;
+}
+
+.participant-nondrinker {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-width: max-content;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.participant-nondrinker input {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--color-primary);
+}
+
+.btn-participant-remove {
+    width: 34px;
+    height: 34px;
+    border: none;
+    border-radius: var(--radius-sm);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #C8644F;
+    background: rgba(200, 100, 79, 0.1);
+    cursor: pointer;
+    transition: var(--transition-fast);
+}
+
+.btn-participant-remove:hover {
+    color: #ffffff;
+    background: #C8644F;
+}
+
+.btn-participant-remove i {
+    width: 15px;
+    height: 15px;
+}
+
+.participant-empty {
+    padding: 14px;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    border: 1px dashed rgba(96, 153, 117, 0.24);
+    border-radius: var(--radius-sm);
+}
+
+@media (max-width: 520px) {
+    .participant-item {
+        grid-template-columns: minmax(0, 1fr) auto;
+    }
+
+    .participant-nondrinker {
+        grid-column: 1 / -1;
+    }
+}
