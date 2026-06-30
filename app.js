@@ -2,12 +2,14 @@
 const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzX2_pyYUaFgWyQsLhspq6V3_G0YHOjGiXmk_sokeN5zXRF2BwVZbx04Nt4xXSRnHH7hQ/exec"; // <-- ใส่ลิงก์ที่เผยแพร่จาก Apps Script ที่นี่ (เช่น https://script.google.com/macros/s/.../exec)
 const PAYER_NAMES = ['ปุ๋ย + แอม', 'จุ๊บ + บี๋', 'โหน่ง + ดา', 'เฮียฮิง']; // <-- เพิ่ม/ลด/แก้ไขรายชื่อตรงนี้ได้เลย!
 const ADMIN_PASSWORD = 'Admin1234';
+const LOCAL_SPLIT_CONFIG_KEY = 'chillout_split_config_v1';
 
 const STATE = {
     config: {
         apiUrl: '',
         payers: [],
-        nonDrinkers: []
+        nonDrinkers: [],
+        sheetUrl: ''
     },
     selectedPayer: '',
     selectedCategory: '',
@@ -132,6 +134,14 @@ function updateUIState() {
 // ----------------------------------------------------
 // UI Rendering Functions
 // ----------------------------------------------------
+function escapeHtml(value) {
+    return String(value || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
 function normalizeParticipantNames(names) {
     const seen = new Set();
     const result = [];
@@ -192,7 +202,28 @@ function setParticipantStatus(text) {
     }
 }
 
+function loadLocalParticipantConfig() {
+    try {
+        const raw = localStorage.getItem(LOCAL_SPLIT_CONFIG_KEY);
+        if (raw) applyParticipantConfig(JSON.parse(raw));
+    } catch (error) {
+        console.warn('Cannot load local split config:', error);
+    }
+}
+
+function saveLocalParticipantConfig() {
+    try {
+        localStorage.setItem(LOCAL_SPLIT_CONFIG_KEY, JSON.stringify({
+            people: STATE.config.payers,
+            nonDrinkers: STATE.config.nonDrinkers
+        }));
+    } catch (error) {
+        console.warn('Cannot save local split config:', error);
+    }
+}
+
 function loadParticipantConfig() {
+    loadLocalParticipantConfig();
     renderParticipantManager();
     if (!STATE.config.apiUrl) return;
 
@@ -215,6 +246,7 @@ function saveParticipantConfig({ refreshDashboard = true } = {}) {
         nonDrinkers: STATE.config.nonDrinkers
     };
 
+    saveLocalParticipantConfig();
     renderPayerChips();
     renderParticipantManager();
 
@@ -801,6 +833,13 @@ function handleOpenSheetRequest() {
         elements.adminPasswordInput.focus();
         return;
     }
+
+    if (STATE.config.sheetUrl) {
+        closeAdminModal();
+        window.open(STATE.config.sheetUrl, '_blank', 'noopener');
+        return;
+    }
+
     openGoogleSheet(password);
 }
 
