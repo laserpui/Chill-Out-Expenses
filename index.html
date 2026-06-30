@@ -232,10 +232,20 @@
                     <div class="dashboard-card-title">
                         <i data-lucide="calculator"></i> สรุปหารค่าใช้จ่าย
                     </div>
-                    <button type="button" class="btn-refresh" id="btn-open-sheet">
-                        <i data-lucide="lock-keyhole"></i>
-                        <span>เปิด Google Sheet</span>
-                    </button>
+                    <div class="dashboard-card-actions">
+                        <button type="button" class="btn-refresh" id="btn-download-summary-image">
+                            <i data-lucide="download"></i>
+                            <span>บันทึกสรุป</span>
+                        </button>
+                        <button type="button" class="btn-refresh" id="btn-share-summary-image">
+                            <i data-lucide="share-2"></i>
+                            <span>แชร์สรุป</span>
+                        </button>
+                        <button type="button" class="btn-refresh" id="btn-open-sheet">
+                            <i data-lucide="lock-keyhole"></i>
+                            <span>เปิด Google Sheet</span>
+                        </button>
+                    </div>
                 </div>
                 <div class="split-summary-list" id="dashboard-split-summary">
                     <!-- Dynamic split calculation loaded here -->
@@ -272,10 +282,20 @@
                     <div class="dashboard-card-title">
                         <i data-lucide="clock"></i> รายการล่าสุด (เรียลไทม์)
                     </div>
-                    <button type="button" class="btn-refresh" id="btn-refresh-dashboard">
-                        <i data-lucide="rotate-cw" id="refresh-icon"></i>
-                        <span>รีเฟรชสรุป</span>
-                    </button>
+                    <div class="dashboard-card-actions">
+                        <button type="button" class="btn-refresh" id="btn-download-expense-image">
+                            <i data-lucide="download"></i>
+                            <span>บันทึกรายการ</span>
+                        </button>
+                        <button type="button" class="btn-refresh" id="btn-share-expense-image">
+                            <i data-lucide="share-2"></i>
+                            <span>แชร์รายการ</span>
+                        </button>
+                        <button type="button" class="btn-refresh" id="btn-refresh-dashboard">
+                            <i data-lucide="rotate-cw" id="refresh-icon"></i>
+                            <span>รีเฟรชสรุป</span>
+                        </button>
+                    </div>
                 </div>
                 <div class="recent-logs-list" id="dashboard-recent-list">
                     <!-- Dynamic recent rows loaded here -->

@@ -1414,3 +1414,32 @@ h1, h2, h3, h4, h5, h6 {
         grid-column: 1 / -1;
     }
 }
+.dashboard-card-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+@media (max-width: 520px) {
+    .dashboard-card-header {
+        align-items: flex-start;
+        gap: 12px;
+    }
+
+    .dashboard-card-actions {
+        justify-content: flex-start;
+        width: 100%;
+    }
+}
+.payer-empty-note {
+    width: 100%;
+    padding: 14px;
+    border: 1px dashed rgba(96, 153, 117, 0.28);
+    border-radius: var(--radius-sm);
+    color: var(--text-muted);
+    background: rgba(255, 255, 255, 0.48);
+    font-size: 0.82rem;
+    line-height: 1.5;
+}

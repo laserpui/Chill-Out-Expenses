@@ -1,6 +1,6 @@
 // Core Application State & Constants
 const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzX2_pyYUaFgWyQsLhspq6V3_G0YHOjGiXmk_sokeN5zXRF2BwVZbx04Nt4xXSRnHH7hQ/exec"; // <-- ใส่ลิงก์ที่เผยแพร่จาก Apps Script ที่นี่ (เช่น https://script.google.com/macros/s/.../exec)
-const PAYER_NAMES = ['ปุ๋ย + แอม', 'จุ๊บ + บี๋', 'โหน่ง + ดา', 'เฮียฮิง']; // <-- เพิ่ม/ลด/แก้ไขรายชื่อตรงนี้ได้เลย!
+const PAYER_NAMES = []; // <-- เพิ่ม/ลด/แก้ไขรายชื่อตรงนี้ได้เลย!
 const ADMIN_PASSWORD = 'Admin1234';
 const LOCAL_SPLIT_CONFIG_KEY = 'chillout_split_config_v1';
 
@@ -11,6 +11,7 @@ const STATE = {
         nonDrinkers: [],
         sheetUrl: ''
     },
+    lastDashboardData: null,
     selectedPayer: '',
     selectedCategory: '',
     attachedImageBase64: '',
@@ -60,6 +61,10 @@ const elements = {
     participantList: document.getElementById('participant-list'),
     participantSaveStatus: document.getElementById('participant-save-status'),
     openSheetBtn: document.getElementById('btn-open-sheet'),
+    downloadSummaryImageBtn: document.getElementById('btn-download-summary-image'),
+    shareSummaryImageBtn: document.getElementById('btn-share-summary-image'),
+    downloadExpenseImageBtn: document.getElementById('btn-download-expense-image'),
+    shareExpenseImageBtn: document.getElementById('btn-share-expense-image'),
     adminModal: document.getElementById('admin-password-modal'),
     adminPasswordInput: document.getElementById('admin-password-input'),
     confirmAdminBtn: document.getElementById('btn-confirm-admin-modal'),
@@ -156,11 +161,11 @@ function normalizeParticipantNames(names) {
 }
 
 function applyParticipantConfig(config = {}) {
-    const people = normalizeParticipantNames(config.people || config.participants || STATE.config.payers || PAYER_NAMES);
+    const people = normalizeParticipantNames(config.people || config.participants || STATE.config.payers || []);
     const nonDrinkers = normalizeParticipantNames(config.nonDrinkers || config.nonAlcoholParticipants || [])
         .filter(name => people.includes(name));
 
-    STATE.config.payers = people.length ? people : [...PAYER_NAMES];
+    STATE.config.payers = people;
     STATE.config.nonDrinkers = nonDrinkers;
     renderPayerChips();
     renderParticipantManager();
@@ -382,7 +387,16 @@ function toggleNonDrinker(index, checked) {
 }
 function renderPayerChips() {
     elements.payerContainer.innerHTML = '';
-    
+
+    if (!STATE.config.payers.length) {
+        const empty = document.createElement('div');
+        empty.className = 'payer-empty-note';
+        empty.textContent = 'ยังไม่มีรายชื่อผู้จ่าย กรุณาเพิ่มรายชื่อในหน้าสรุปรายงานก่อน';
+        elements.payerContainer.appendChild(empty);
+        lucide.createIcons();
+        return;
+    }
+
     STATE.config.payers.forEach(name => {
         const chip = document.createElement('div');
         chip.className = 'payer-chip';
@@ -390,27 +404,13 @@ function renderPayerChips() {
         if (STATE.selectedPayer === name) {
             chip.classList.add('active');
         }
-        
+
         chip.addEventListener('click', () => {
             selectPayer(name, chip);
         });
-        
+
         elements.payerContainer.appendChild(chip);
     });
-    
-    // เพิ่มปุ่ม "คนอื่น ๆ (ระบุชื่อเอง)" เป็นตัวเลือกพิเศษ
-    const otherChip = document.createElement('div');
-    otherChip.className = 'payer-chip special-other';
-    otherChip.id = 'chip-other-payer';
-    otherChip.innerHTML = '✍️ คนอื่น ๆ (ระบุชื่อเอง)';
-    if (STATE.selectedPayer === '__OTHER__') {
-        otherChip.classList.add('active');
-    }
-    otherChip.addEventListener('click', () => {
-        selectPayer('__OTHER__', otherChip);
-    });
-    
-    elements.payerContainer.appendChild(otherChip);
     lucide.createIcons();
 }
 
@@ -453,6 +453,10 @@ function setupEventListeners() {
     elements.participantNameInput.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') addParticipant();
     });
+    elements.downloadSummaryImageBtn.addEventListener('click', downloadSummaryImage);
+    elements.shareSummaryImageBtn.addEventListener('click', shareSummaryImage);
+    elements.downloadExpenseImageBtn.addEventListener('click', downloadExpenseListImage);
+    elements.shareExpenseImageBtn.addEventListener('click', shareExpenseListImage);
     elements.openSheetBtn.addEventListener('click', openAdminModal);
     elements.closeAdminBtn.addEventListener('click', closeAdminModal);
     elements.confirmAdminBtn.addEventListener('click', handleOpenSheetRequest);
@@ -640,19 +644,13 @@ async function handleFormSubmission(e) {
         elements.dateInput.focus();
         return;
     }
+    if (!STATE.config.payers.length) {
+        showToast('⚠️ กรุณาเพิ่มรายชื่อผู้จ่ายในหน้าสรุปรายงานก่อน', 'error');
+        return;
+    }
     if (!payer) {
         showToast('⚠️ กรุณาเลือกคนจ่ายเงิน', 'error');
         return;
-    }
-    
-    // กรณีระบุชื่อคนจ่ายเองเพิ่มเติม
-    if (payer === '__OTHER__') {
-        payer = elements.payerSpecifyInput.value.trim();
-        if (!payer) {
-            showToast('⚠️ กรุณาระบุชื่อผู้จ่ายเงิน', 'error');
-            elements.payerSpecifyInput.focus();
-            return;
-        }
     }
     
     if (!category) {
@@ -880,6 +878,264 @@ function openGoogleSheet(password) {
 // ----------------------------------------------------
 // Navigation Tab Switcher & Dashboard Rendering
 // ----------------------------------------------------
+function round2(value) {
+    return Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
+}
+
+function wrapCanvasText(ctx, text, maxWidth) {
+    const words = String(text || '').split(/\s+/).filter(Boolean);
+    const lines = [];
+    let line = '';
+    words.forEach(word => {
+        const testLine = line ? `${line} ${word}` : word;
+        if (ctx.measureText(testLine).width > maxWidth && line) {
+            lines.push(line);
+            line = word;
+        } else {
+            line = testLine;
+        }
+    });
+    if (line) lines.push(line);
+    return lines.length ? lines : [''];
+}
+
+function canvasBlob(canvas) {
+    return new Promise((resolve, reject) => {
+        canvas.toBlob((blob) => {
+            if (blob) resolve(blob);
+            else reject(new Error('Cannot create image'));
+        }, 'image/png', 0.95);
+    });
+}
+
+function downloadBlob(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+}
+
+async function createSummaryImageBlob() {
+    const data = STATE.lastDashboardData;
+    const summary = data && data.splitSummary;
+    if (!summary || !summary.people || !summary.people.length) {
+        throw new Error('No summary data');
+    }
+
+    const people = summary.people || [];
+    const settlements = summary.settlements || [];
+    const total = round2(data.total || 0);
+    const scale = Math.min(window.devicePixelRatio || 1, 2);
+    const width = 980;
+    const padding = 48;
+    const rowHeight = 58;
+    const settlementLines = settlements.length
+        ? settlements.map(item => `${item.from} → ${item.to}: ${formatCurrency(item.amount)}`)
+        : ['ยอดลงตัวแล้ว ไม่ต้องโอนเพิ่ม'];
+    const height = Math.max(680, padding * 2 + 150 + people.length * rowHeight + settlementLines.length * 42 + 120);
+
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    canvas.width = width * scale;
+    canvas.height = height * scale;
+    ctx.scale(scale, scale);
+
+    const gradient = ctx.createLinearGradient(0, 0, width, height);
+    gradient.addColorStop(0, '#F7FAF8');
+    gradient.addColorStop(0.55, '#FFFDF7');
+    gradient.addColorStop(1, '#EAF4EE');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, width, height);
+
+    ctx.fillStyle = '#2C3E35';
+    ctx.font = "900 38px 'Noto Sans Thai', 'Segoe UI', sans-serif";
+    ctx.fillText('Chill Out Expense Summary', padding, 78);
+    ctx.font = "700 22px 'Noto Sans Thai', 'Segoe UI', sans-serif";
+    ctx.fillStyle = '#609975';
+    ctx.fillText(`ยอดรวม ${formatCurrency(total)} • ${people.length} คน`, padding, 115);
+
+    let y = 160;
+    ctx.font = "800 22px 'Noto Sans Thai', 'Segoe UI', sans-serif";
+    ctx.fillStyle = '#2C3E35';
+    ctx.fillText('สรุปรายคน', padding, y);
+    y += 24;
+
+    people.forEach(person => {
+        const balance = round2(person.balance || 0);
+        ctx.fillStyle = 'rgba(255,255,255,0.82)';
+        ctx.strokeStyle = 'rgba(96,153,117,0.2)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.roundRect(padding, y, width - padding * 2, rowHeight - 8, 12);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = '#2C3E35';
+        ctx.font = "800 20px 'Noto Sans Thai', 'Segoe UI', sans-serif";
+        ctx.fillText(person.name, padding + 18, y + 32);
+        ctx.font = "700 16px 'Noto Sans Thai', 'Segoe UI', sans-serif";
+        ctx.fillStyle = '#6A7B70';
+        ctx.fillText(`จ่ายแล้ว ${formatCurrency(person.paid, 0)} • ต้องรับผิดชอบ ${formatCurrency(person.share, 0)}`, padding + 250, y + 32);
+        ctx.textAlign = 'right';
+        ctx.fillStyle = balance >= 0 ? '#609975' : '#C8644F';
+        ctx.font = "900 20px 'Noto Sans Thai', 'Segoe UI', sans-serif";
+        ctx.fillText(`${balance >= 0 ? 'รับคืน' : 'จ่ายเพิ่ม'} ${formatCurrency(Math.abs(balance))}`, width - padding - 18, y + 32);
+        ctx.textAlign = 'left';
+        y += rowHeight;
+    });
+
+    y += 24;
+    ctx.fillStyle = '#2C3E35';
+    ctx.font = "800 22px 'Noto Sans Thai', 'Segoe UI', sans-serif";
+    ctx.fillText('แนะนำการเคลียร์เงิน', padding, y);
+    y += 34;
+    ctx.font = "700 18px 'Noto Sans Thai', 'Segoe UI', sans-serif";
+    ctx.fillStyle = '#2C3E35';
+    settlementLines.forEach(line => {
+        wrapCanvasText(ctx, line, width - padding * 2).forEach(wrapped => {
+            ctx.fillText(wrapped, padding + 18, y);
+            y += 34;
+        });
+    });
+
+    ctx.fillStyle = '#7A8B80';
+    ctx.font = "700 16px 'Noto Sans Thai', 'Segoe UI', sans-serif";
+    ctx.fillText('สร้างจาก Chill Out Expense Tracker', padding, height - 42);
+
+    return canvasBlob(canvas);
+}
+
+async function createExpenseListImageBlob() {
+    const data = STATE.lastDashboardData;
+    const rows = data && Array.isArray(data.recent) ? data.recent : [];
+    if (!rows.length) {
+        throw new Error('No expense data');
+    }
+
+    const scale = Math.min(window.devicePixelRatio || 1, 2);
+    const width = 980;
+    const padding = 48;
+    const rowHeight = 76;
+    const height = Math.max(620, padding * 2 + 140 + rows.length * rowHeight + 78);
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    canvas.width = width * scale;
+    canvas.height = height * scale;
+    ctx.scale(scale, scale);
+
+    const gradient = ctx.createLinearGradient(0, 0, width, height);
+    gradient.addColorStop(0, '#F7FAF8');
+    gradient.addColorStop(0.6, '#FFFDF7');
+    gradient.addColorStop(1, '#EAF4EE');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, width, height);
+
+    const total = round2(rows.reduce((sum, item) => sum + Number(item.amount || 0), 0));
+    ctx.fillStyle = '#2C3E35';
+    ctx.font = "900 38px 'Noto Sans Thai', 'Segoe UI', sans-serif";
+    ctx.fillText('Chill Out Expense List', padding, 78);
+    ctx.font = "700 22px 'Noto Sans Thai', 'Segoe UI', sans-serif";
+    ctx.fillStyle = '#609975';
+    ctx.fillText(`รายการล่าสุด ${rows.length} รายการ • รวม ${formatCurrency(total)}`, padding, 115);
+
+    let y = 160;
+    rows.forEach((item, index) => {
+        ctx.fillStyle = 'rgba(255,255,255,0.84)';
+        ctx.strokeStyle = 'rgba(96,153,117,0.2)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.roundRect(padding, y, width - padding * 2, rowHeight - 10, 12);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = '#609975';
+        ctx.font = "900 18px 'Noto Sans Thai', 'Segoe UI', sans-serif";
+        ctx.fillText(String(index + 1).padStart(2, '0'), padding + 18, y + 40);
+
+        ctx.fillStyle = '#2C3E35';
+        ctx.font = "800 21px 'Noto Sans Thai', 'Segoe UI', sans-serif";
+        ctx.fillText(String(item.details || '-').slice(0, 34), padding + 72, y + 30);
+        ctx.fillStyle = '#6A7B70';
+        ctx.font = "700 16px 'Noto Sans Thai', 'Segoe UI', sans-serif";
+        ctx.fillText(`${item.date || '-'} • ${item.payer || '-'} • ${item.category || '-'}`.slice(0, 70), padding + 72, y + 54);
+
+        ctx.textAlign = 'right';
+        ctx.fillStyle = '#2C3E35';
+        ctx.font = "900 22px 'Noto Sans Thai', 'Segoe UI', sans-serif";
+        ctx.fillText(formatCurrency(item.amount), width - padding - 18, y + 42);
+        ctx.textAlign = 'left';
+        y += rowHeight;
+    });
+
+    ctx.fillStyle = '#7A8B80';
+    ctx.font = "700 16px 'Noto Sans Thai', 'Segoe UI', sans-serif";
+    ctx.fillText('สร้างจาก Chill Out Expense Tracker', padding, height - 42);
+
+    return canvasBlob(canvas);
+}
+
+async function downloadExpenseListImage() {
+    try {
+        const blob = await createExpenseListImageBlob();
+        downloadBlob(blob, 'chill-out-expenses.png');
+        showToast('บันทึกรูปรายการแล้ว', 'success');
+    } catch (error) {
+        console.error(error);
+        showToast('ยังไม่มีรายการสำหรับบันทึกภาพ', 'error');
+    }
+}
+
+async function shareExpenseListImage() {
+    try {
+        const blob = await createExpenseListImageBlob();
+        if (navigator.share && navigator.canShare && typeof File !== 'undefined') {
+            const file = new File([blob], 'chill-out-expenses.png', { type: 'image/png' });
+            if (navigator.canShare({ files: [file] })) {
+                await navigator.share({ files: [file], title: 'Chill Out Expenses', text: 'รายการค่าใช้จ่าย Chill Out' });
+                showToast('เปิดเมนูแชร์แล้ว', 'success');
+                return;
+            }
+        }
+        downloadBlob(blob, 'chill-out-expenses.png');
+        showToast('ดาวน์โหลดรูปรายการแล้ว', 'success');
+    } catch (error) {
+        console.error(error);
+        showToast('แชร์รูปรายการไม่สำเร็จ', 'error');
+    }
+}
+async function downloadSummaryImage() {
+    try {
+        const blob = await createSummaryImageBlob();
+        downloadBlob(blob, 'chill-out-summary.png');
+        showToast('บันทึกภาพสรุปแล้ว', 'success');
+    } catch (error) {
+        console.error(error);
+        showToast('ยังไม่มีข้อมูลสรุปสำหรับบันทึกภาพ', 'error');
+    }
+}
+
+async function shareSummaryImage() {
+    try {
+        const blob = await createSummaryImageBlob();
+        if (navigator.share && navigator.canShare && typeof File !== 'undefined') {
+            const file = new File([blob], 'chill-out-summary.png', { type: 'image/png' });
+            if (navigator.canShare({ files: [file] })) {
+                await navigator.share({ files: [file], title: 'Chill Out Summary', text: 'สรุปค่าใช้จ่าย Chill Out' });
+                showToast('เปิดเมนูแชร์แล้ว', 'success');
+                return;
+            }
+        }
+        downloadBlob(blob, 'chill-out-summary.png');
+        showToast('ดาวน์โหลดรูปสรุปแล้ว', 'success');
+    } catch (error) {
+        console.error(error);
+        showToast('แชร์รูปสรุปไม่สำเร็จ', 'error');
+    }
+}
 function switchTab(tabId) {
     if (tabId === 'expense') {
         elements.navBtnExpense.classList.add('active');
