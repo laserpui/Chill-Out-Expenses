@@ -1443,3 +1443,27 @@ h1, h2, h3, h4, h5, h6 {
     font-size: 0.82rem;
     line-height: 1.5;
 }
+.payer-quick-add {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px;
+    align-items: center;
+    margin-top: 10px;
+}
+
+.payer-helper {
+    margin-top: 8px;
+    font-size: 0.74rem;
+    line-height: 1.45;
+    color: var(--text-muted);
+}
+
+@media (max-width: 520px) {
+    .payer-quick-add {
+        grid-template-columns: 1fr;
+    }
+
+    .payer-quick-add .btn-refresh {
+        justify-content: center;
+    }
+}

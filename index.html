@@ -56,10 +56,17 @@
                     <div class="form-group">
                         <label class="form-label">
                             <i data-lucide="user"></i> รายชื่อผู้จ่าย
-                        </label>
-                        <div class="payer-list-container" id="payer-container">
+                        </label>                        <div class="payer-list-container" id="payer-container">
                             <!-- Chips will be generated here dynamically by JS -->
                         </div>
+                        <div class="payer-quick-add">
+                            <input type="text" id="payer-quick-name" class="form-input" placeholder="เพิ่มชื่อผู้จ่าย เช่น ปุ๋ย">
+                            <button type="button" class="btn-refresh" id="btn-add-payer-quick">
+                                <i data-lucide="plus"></i>
+                                <span>เพิ่มชื่อ</span>
+                            </button>
+                        </div>
+                        <div class="payer-helper">เพิ่มชื่อแล้วเลือกเป็นผู้จ่ายได้ทันที รายชื่อนี้จะใช้ในหน้าสรุปและการหารเงินด้วย</div>
                         <input type="hidden" id="selected-payer" required>
                     </div>
 

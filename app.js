@@ -1,8 +1,9 @@
 // Core Application State & Constants
-const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzX2_pyYUaFgWyQsLhspq6V3_G0YHOjGiXmk_sokeN5zXRF2BwVZbx04Nt4xXSRnHH7hQ/exec"; // <-- ใส่ลิงก์ที่เผยแพร่จาก Apps Script ที่นี่ (เช่น https://script.google.com/macros/s/.../exec)
+const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycby8zX5Y3Ro4Pnzm9PGhwa_DoCYP8qBGHjOcTHmrAK6etfe53vJhj8G1fdRytORqY-VKSA/exec"; // <-- ใส่ลิงก์ที่เผยแพร่จาก Apps Script ที่นี่ (เช่น https://script.google.com/macros/s/.../exec)
 const PAYER_NAMES = []; // <-- เพิ่ม/ลด/แก้ไขรายชื่อตรงนี้ได้เลย!
 const ADMIN_PASSWORD = 'Admin1234';
-const LOCAL_SPLIT_CONFIG_KEY = 'chillout_split_config_v1';
+const LOCAL_SPLIT_CONFIG_KEY = 'chillout_split_config_v2';
+const LEGACY_DEFAULT_PAYER_NAMES = ['ปุ๋ย + แอม', 'จุ๊บ + บี๋', 'โหน่ง + ดา', 'เฮียฮิง', 'เฮียฮิง', 'ปุ๋ย', 'แอม', 'จุ๊บ', 'บี๋'];
 
 const STATE = {
     config: {
@@ -24,7 +25,9 @@ const elements = {
     form: document.getElementById('expense-form'),
     dateInput: document.getElementById('expense-date'),
     payerContainer: document.getElementById('payer-container'),
-    selectedPayerInput: document.getElementById('selected-payer'),
+        payerQuickNameInput: document.getElementById('payer-quick-name'),
+    addPayerQuickBtn: document.getElementById('btn-add-payer-quick'),
+selectedPayerInput: document.getElementById('selected-payer'),
     categoryContainer: document.getElementById('category-container'),
     selectedCategoryInput: document.getElementById('selected-category'),
     specifyPanel: document.getElementById('specify-panel'),
@@ -160,8 +163,16 @@ function normalizeParticipantNames(names) {
     return result;
 }
 
+function isLegacyDefaultNameSet(people) {
+    const normalized = normalizeParticipantNames(people);
+    return normalized.length > 0 && normalized.every(name => LEGACY_DEFAULT_PAYER_NAMES.includes(name));
+}
+
 function applyParticipantConfig(config = {}) {
-    const people = normalizeParticipantNames(config.people || config.participants || STATE.config.payers || []);
+    let people = normalizeParticipantNames(config.people || config.participants || STATE.config.payers || []);
+    if (isLegacyDefaultNameSet(people)) {
+        people = [];
+    }
     const nonDrinkers = normalizeParticipantNames(config.nonDrinkers || config.nonAlcoholParticipants || [])
         .filter(name => people.includes(name));
 
@@ -319,6 +330,48 @@ function renderParticipantManager() {
     lucide.createIcons();
 }
 
+function addParticipantName(name, { selectAfterAdd = false, refreshDashboard = true } = {}) {
+    const cleanName = String(name || '').trim();
+    if (!cleanName) {
+        showToast('กรุณากรอกชื่อก่อน', 'error');
+        return false;
+    }
+    if (STATE.config.payers.includes(cleanName)) {
+        showToast('มีชื่อนี้อยู่แล้ว', 'error');
+        if (selectAfterAdd) {
+            setTimeout(() => {
+                const chip = [...elements.payerContainer.querySelectorAll('.payer-chip')].find(item => item.textContent === cleanName);
+                if (chip) selectPayer(cleanName, chip);
+            }, 0);
+        }
+        return false;
+    }
+
+    STATE.config.payers.push(cleanName);
+    saveParticipantConfig({ refreshDashboard });
+    if (selectAfterAdd) {
+        setTimeout(() => {
+            const chip = [...elements.payerContainer.querySelectorAll('.payer-chip')].find(item => item.textContent === cleanName);
+            if (chip) selectPayer(cleanName, chip);
+        }, 0);
+    }
+    return true;
+}
+
+function addPayerFromExpenseForm() {
+    const input = elements.payerQuickNameInput;
+    const name = input ? input.value.trim() : '';
+    if (!name) {
+        showToast('กรุณากรอกชื่อผู้จ่ายก่อน', 'error');
+        if (input) input.focus();
+        return;
+    }
+    const added = addParticipantName(name, { selectAfterAdd: true, refreshDashboard: false });
+    if (added && input) {
+        input.value = '';
+        showToast('เพิ่มชื่อผู้จ่ายแล้ว', 'success');
+    }
+}
 function addParticipant() {
     const name = elements.participantNameInput.value.trim();
     if (!name) {
@@ -332,9 +385,9 @@ function addParticipant() {
         return;
     }
 
-    STATE.config.payers.push(name);
-    elements.participantNameInput.value = '';
-    saveParticipantConfig();
+    if (addParticipantName(name)) {
+        elements.participantNameInput.value = '';
+    }
 }
 
 function renameParticipant(index, nextName) {
@@ -453,6 +506,17 @@ function setupEventListeners() {
     elements.participantNameInput.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') addParticipant();
     });
+    if (elements.addPayerQuickBtn) {
+        elements.addPayerQuickBtn.addEventListener('click', addPayerFromExpenseForm);
+    }
+    if (elements.payerQuickNameInput) {
+        elements.payerQuickNameInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                addPayerFromExpenseForm();
+            }
+        });
+    }
     elements.downloadSummaryImageBtn.addEventListener('click', downloadSummaryImage);
     elements.shareSummaryImageBtn.addEventListener('click', shareSummaryImage);
     elements.downloadExpenseImageBtn.addEventListener('click', downloadExpenseListImage);
@@ -916,7 +980,20 @@ function downloadBlob(blob, filename) {
     document.body.appendChild(link);
     link.click();
     link.remove();
-    URL.revokeObjectURL(url);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function drawRoundRect(ctx, x, y, width, height, radius) {
+    const r = Math.min(radius, width / 2, height / 2);
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + width - r, y);
+    ctx.quadraticCurveTo(x + width, y, x + width, y + r);
+    ctx.lineTo(x + width, y + height - r);
+    ctx.quadraticCurveTo(x + width, y + height, x + width - r, y + height);
+    ctx.lineTo(x + r, y + height);
+    ctx.quadraticCurveTo(x, y + height, x, y + height - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
 }
 
 async function createSummaryImageBlob() {
@@ -970,7 +1047,7 @@ async function createSummaryImageBlob() {
         ctx.strokeStyle = 'rgba(96,153,117,0.2)';
         ctx.lineWidth = 1;
         ctx.beginPath();
-        ctx.roundRect(padding, y, width - padding * 2, rowHeight - 8, 12);
+        drawRoundRect(ctx, padding, y, width - padding * 2, rowHeight - 8, 12);
         ctx.fill();
         ctx.stroke();
 
@@ -1011,7 +1088,7 @@ async function createSummaryImageBlob() {
 
 async function createExpenseListImageBlob() {
     const data = STATE.lastDashboardData;
-    const rows = data && Array.isArray(data.recent) ? data.recent : [];
+    const rows = data && Array.isArray(data.allExpenses) && data.allExpenses.length ? data.allExpenses : (data && Array.isArray(data.recent) ? data.recent : []);
     if (!rows.length) {
         throw new Error('No expense data');
     }
@@ -1048,7 +1125,7 @@ async function createExpenseListImageBlob() {
         ctx.strokeStyle = 'rgba(96,153,117,0.2)';
         ctx.lineWidth = 1;
         ctx.beginPath();
-        ctx.roundRect(padding, y, width - padding * 2, rowHeight - 10, 12);
+        drawRoundRect(ctx, padding, y, width - padding * 2, rowHeight - 10, 12);
         ctx.fill();
         ctx.stroke();
 
