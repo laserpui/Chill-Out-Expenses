@@ -1545,6 +1545,37 @@ h1, h2, h3, h4, h5, h6 {
 .generated-image-actions a {
     text-decoration: none;
 }
+.generated-image-header p {
+    margin-top: 4px;
+    font-size: 0.78rem;
+    line-height: 1.45;
+    color: var(--text-muted);
+}
+
+.generated-image-actions .btn-refresh {
+    min-height: 38px;
+}
+
+@media (max-width: 520px) {
+    .generated-image-card {
+        width: 96vw;
+        padding: 14px;
+    }
+
+    .generated-image-header {
+        align-items: flex-start;
+    }
+
+    .generated-image-actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .generated-image-actions .btn-refresh {
+        justify-content: center;
+        width: 100%;
+    }
+}
     </style>
     <!-- Lucide Icons CDN -->
     <script src="https://unpkg.com/lucide@latest"></script>
@@ -2917,48 +2948,174 @@ function wrapCanvasText(ctx, text, maxWidth) {
     return lines.length ? lines : [''];
 }
 
+function dataUrlToBlob(dataUrl) {
+    const parts = dataUrl.split(',');
+    const mime = (parts[0].match(/:(.*?);/) || [])[1] || 'image/png';
+    const binary = atob(parts[1] || '');
+    const length = binary.length;
+    const bytes = new Uint8Array(length);
+    for (let i = 0; i < length; i++) {
+        bytes[i] = binary.charCodeAt(i);
+    }
+    return new Blob([bytes], { type: mime });
+}
+
 function canvasBlob(canvas) {
     return new Promise((resolve, reject) => {
-        canvas.toBlob((blob) => {
-            if (blob) resolve(blob);
-            else reject(new Error('Cannot create image'));
-        }, 'image/png', 0.95);
+        if (canvas.toBlob) {
+            canvas.toBlob((blob) => {
+                if (blob) resolve(blob);
+                else reject(new Error('Cannot create image'));
+            }, 'image/png', 0.95);
+            return;
+        }
+
+        try {
+            resolve(dataUrlToBlob(canvas.toDataURL('image/png')));
+        } catch (error) {
+            reject(error);
+        }
     });
 }
 
-function showGeneratedImagePanel(blob, filename) {
+function blobToDataUrl(blob) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+    });
+}
+
+function makeImageFile(blob, filename) {
+    if (typeof File === 'undefined') return null;
+    return new File([blob], filename, { type: blob.type || 'image/png' });
+}
+
+function canShareImageFile(file) {
+    return Boolean(file && navigator.share && navigator.canShare && navigator.canShare({ files: [file] }));
+}
+
+async function copyImageBlob(blob) {
+    if (!navigator.clipboard || typeof ClipboardItem === 'undefined') {
+        throw new Error('Clipboard image is not supported');
+    }
+    await navigator.clipboard.write([new ClipboardItem({ [blob.type || 'image/png']: blob })]);
+}
+
+async function shareImageBlob(blob, filename, title, text, { showFallback = true } = {}) {
+    const file = makeImageFile(blob, filename);
+    if (canShareImageFile(file)) {
+        await navigator.share({ files: [file], title, text });
+        return 'shared';
+    }
+
+    if (navigator.share) {
+        try {
+            await navigator.share({ title, text });
+            return 'shared-text';
+        } catch (error) {
+            if (error && error.name === 'AbortError') throw error;
+        }
+    }
+
+    if (showFallback) {
+        await showGeneratedImagePanel(blob, filename, { title, text, mode: 'share' });
+    }
+    return 'fallback';
+}
+
+async function showGeneratedImagePanel(blob, filename, options = {}) {
     const oldPanel = document.getElementById('generated-image-panel');
     if (oldPanel) oldPanel.remove();
 
     const previewUrl = URL.createObjectURL(blob);
+    let dataUrl = previewUrl;
+    try {
+        dataUrl = await blobToDataUrl(blob);
+    } catch (error) {
+        console.warn('Cannot create image data URL preview:', error);
+    }
+
+    const title = options.title || 'Chill Out Report';
+    const text = options.text || 'Chill Out generated report';
+    const modeText = options.mode === 'share'
+        ? 'เบราว์เซอร์นี้แชร์ไฟล์รูปโดยตรงไม่ได้ ใช้ปุ่มด้านล่างเพื่อดาวน์โหลด เปิดรูป หรือคัดลอกรูปแทน'
+        : 'ถ้าระบบไม่ดาวน์โหลดอัตโนมัติ ให้กดดาวน์โหลดหรือเปิดรูปจากหน้านี้';
+
     const panel = document.createElement('div');
     panel.id = 'generated-image-panel';
     panel.className = 'generated-image-panel';
     panel.innerHTML = `
-        <div class="generated-image-card">
+        <div class="generated-image-card" role="dialog" aria-modal="true" aria-label="รูปสรุปพร้อมใช้งาน">
             <div class="generated-image-header">
-                <strong>รูปพร้อมบันทึกแล้ว</strong>
+                <div>
+                    <strong>รูปพร้อมใช้งานแล้ว</strong>
+                    <p>${escapeHtml(modeText)}</p>
+                </div>
                 <button type="button" class="generated-image-close" aria-label="ปิด"><i data-lucide="x"></i></button>
             </div>
-            <img src="${previewUrl}" alt="Chill Out generated report">
+            <img src="${dataUrl}" alt="Chill Out generated report">
             <div class="generated-image-actions">
-                <a class="btn-refresh" href="${previewUrl}" download="${filename}" target="_blank" rel="noopener">
+                <a class="btn-refresh generated-download" href="${previewUrl}" download="${filename}" target="_blank" rel="noopener">
                     <i data-lucide="download"></i><span>ดาวน์โหลด</span>
                 </a>
-                <a class="btn-refresh" href="${previewUrl}" target="_blank" rel="noopener">
+                <button type="button" class="btn-refresh generated-open">
                     <i data-lucide="external-link"></i><span>เปิดรูป</span>
-                </a>
+                </button>
+                <button type="button" class="btn-refresh generated-copy">
+                    <i data-lucide="copy"></i><span>คัดลอกรูป</span>
+                </button>
+                <button type="button" class="btn-refresh generated-share">
+                    <i data-lucide="share-2"></i><span>แชร์</span>
+                </button>
             </div>
         </div>
     `;
     document.body.appendChild(panel);
-    panel.querySelector('.generated-image-close').addEventListener('click', () => {
+
+    const closePanel = () => {
         panel.remove();
         URL.revokeObjectURL(previewUrl);
+    };
+
+    panel.querySelector('.generated-image-close').addEventListener('click', closePanel);
+    panel.addEventListener('click', (event) => {
+        if (event.target === panel) closePanel();
     });
+    panel.querySelector('.generated-open').addEventListener('click', () => {
+        const opened = window.open(previewUrl, '_blank', 'noopener');
+        if (!opened) showToast('ถ้าเปิดรูปไม่ได้ ให้กดดาวน์โหลด หรือแตะค้างที่รูปเพื่อบันทึก', 'warning');
+    });
+    panel.querySelector('.generated-copy').addEventListener('click', async () => {
+        try {
+            await copyImageBlob(blob);
+            showToast('คัดลอกรูปแล้ว', 'success');
+        } catch (error) {
+            console.error(error);
+            showToast('คัดลอกรูปไม่ได้ในเบราว์เซอร์นี้ ให้กดดาวน์โหลดแทน', 'warning');
+        }
+    });
+    panel.querySelector('.generated-share').addEventListener('click', async () => {
+        try {
+            const result = await shareImageBlob(blob, filename, title, text, { showFallback: false });
+            if (result === 'fallback') {
+                showToast('เครื่องนี้แชร์ไฟล์รูปโดยตรงไม่ได้ ให้ดาวน์โหลดหรือเปิดรูปเพื่อแชร์ต่อ', 'warning');
+            } else {
+                showToast('เปิดเมนูแชร์แล้ว', 'success');
+            }
+        } catch (error) {
+            if (!error || error.name !== 'AbortError') {
+                console.error(error);
+                showToast('แชร์รูปไม่ได้ ให้ดาวน์โหลดหรือเปิดรูปเพื่อแชร์ต่อ', 'warning');
+            }
+        }
+    });
+
     lucide.createIcons();
 }
-function downloadBlob(blob, filename) {
+
+async function downloadBlob(blob, filename, options = {}) {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
@@ -2967,14 +3124,18 @@ function downloadBlob(blob, filename) {
     link.rel = 'noopener';
     document.body.appendChild(link);
 
-    if ('download' in link) {
-        link.click();
-    } else {
-        window.open(url, '_blank', 'noopener');
+    try {
+        if ('download' in link) {
+            link.click();
+        } else {
+            window.open(url, '_blank', 'noopener');
+        }
+    } finally {
+        link.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 3000);
     }
 
-    link.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 3000);
+    await showGeneratedImagePanel(blob, filename, options);
 }
 
 async function ensureDashboardDataForImage() {
@@ -2993,9 +3154,9 @@ async function ensureDashboardDataForImage() {
     if (!data || data.status !== 'success') {
         throw new Error('No dashboard data');
     }
+    STATE.lastDashboardData = data;
     return data;
 }
-
 function drawRoundRect(ctx, x, y, width, height, radius) {
     const r = Math.min(radius, width / 2, height / 2);
     ctx.moveTo(x + r, y);
@@ -3010,7 +3171,7 @@ function drawRoundRect(ctx, x, y, width, height, radius) {
 }
 
 async function createSummaryImageBlob() {
-    const data = STATE.lastDashboardData;
+    const data = await ensureDashboardDataForImage();
     const summary = data && data.splitSummary;
     if (!summary || !summary.people || !summary.people.length) {
         throw new Error('No summary data');
@@ -3100,7 +3261,7 @@ async function createSummaryImageBlob() {
 }
 
 async function createExpenseListImageBlob() {
-    const data = STATE.lastDashboardData;
+    const data = await ensureDashboardDataForImage();
     const rows = data && Array.isArray(data.allExpenses) && data.allExpenses.length ? data.allExpenses : (data && Array.isArray(data.recent) ? data.recent : []);
     if (!rows.length) {
         throw new Error('No expense data');
@@ -3171,7 +3332,7 @@ async function createExpenseListImageBlob() {
 async function downloadExpenseListImage() {
     try {
         const blob = await createExpenseListImageBlob();
-        downloadBlob(blob, 'chill-out-expenses.png');
+        await downloadBlob(blob, 'chill-out-expenses.png', { title: 'Chill Out Expenses', text: 'รายการค่าใช้จ่าย Chill Out' });
         showToast('บันทึกรูปรายการแล้ว', 'success');
     } catch (error) {
         console.error(error);
@@ -3182,25 +3343,23 @@ async function downloadExpenseListImage() {
 async function shareExpenseListImage() {
     try {
         const blob = await createExpenseListImageBlob();
-        if (navigator.share && navigator.canShare && typeof File !== 'undefined') {
-            const file = new File([blob], 'chill-out-expenses.png', { type: 'image/png' });
-            if (navigator.canShare({ files: [file] })) {
-                await navigator.share({ files: [file], title: 'Chill Out Expenses', text: 'รายการค่าใช้จ่าย Chill Out' });
-                showToast('เปิดเมนูแชร์แล้ว', 'success');
-                return;
-            }
+        const result = await shareImageBlob(blob, 'chill-out-expenses.png', 'Chill Out Expenses', 'รายการค่าใช้จ่าย Chill Out');
+        if (result === 'fallback') {
+            showToast('เครื่องนี้แชร์ไฟล์รูปโดยตรงไม่ได้ เปิดแผงรูปให้ดาวน์โหลดหรือแชร์ต่อแล้ว', 'warning');
+        } else {
+            showToast('เปิดเมนูแชร์แล้ว', 'success');
         }
-        downloadBlob(blob, 'chill-out-expenses.png');
-        showToast('ดาวน์โหลดรูปรายการแล้ว', 'success');
     } catch (error) {
-        console.error(error);
-        showToast('แชร์รูปรายการไม่สำเร็จ', 'error');
+        if (!error || error.name !== 'AbortError') {
+            console.error(error);
+            showToast('แชร์รูปไม่สำเร็จ กรุณากดบันทึกรูปแล้วแชร์จากเครื่องแทน', 'error');
+        }
     }
 }
 async function downloadSummaryImage() {
     try {
         const blob = await createSummaryImageBlob();
-        downloadBlob(blob, 'chill-out-summary.png');
+        await downloadBlob(blob, 'chill-out-summary.png', { title: 'Chill Out Summary', text: 'สรุปค่าใช้จ่าย Chill Out' });
         showToast('บันทึกภาพสรุปแล้ว', 'success');
     } catch (error) {
         console.error(error);
@@ -3211,19 +3370,17 @@ async function downloadSummaryImage() {
 async function shareSummaryImage() {
     try {
         const blob = await createSummaryImageBlob();
-        if (navigator.share && navigator.canShare && typeof File !== 'undefined') {
-            const file = new File([blob], 'chill-out-summary.png', { type: 'image/png' });
-            if (navigator.canShare({ files: [file] })) {
-                await navigator.share({ files: [file], title: 'Chill Out Summary', text: 'สรุปค่าใช้จ่าย Chill Out' });
-                showToast('เปิดเมนูแชร์แล้ว', 'success');
-                return;
-            }
+        const result = await shareImageBlob(blob, 'chill-out-summary.png', 'Chill Out Summary', 'สรุปค่าใช้จ่าย Chill Out');
+        if (result === 'fallback') {
+            showToast('เครื่องนี้แชร์ไฟล์รูปโดยตรงไม่ได้ เปิดแผงรูปให้ดาวน์โหลดหรือแชร์ต่อแล้ว', 'warning');
+        } else {
+            showToast('เปิดเมนูแชร์แล้ว', 'success');
         }
-        downloadBlob(blob, 'chill-out-summary.png');
-        showToast('ดาวน์โหลดรูปสรุปแล้ว', 'success');
     } catch (error) {
-        console.error(error);
-        showToast('แชร์รูปสรุปไม่สำเร็จ', 'error');
+        if (!error || error.name !== 'AbortError') {
+            console.error(error);
+            showToast('แชร์รูปไม่สำเร็จ กรุณากดบันทึกรูปแล้วแชร์จากเครื่องแทน', 'error');
+        }
     }
 }
 function switchTab(tabId) {

@@ -1538,3 +1538,34 @@ h1, h2, h3, h4, h5, h6 {
 .generated-image-actions a {
     text-decoration: none;
 }
+.generated-image-header p {
+    margin-top: 4px;
+    font-size: 0.78rem;
+    line-height: 1.45;
+    color: var(--text-muted);
+}
+
+.generated-image-actions .btn-refresh {
+    min-height: 38px;
+}
+
+@media (max-width: 520px) {
+    .generated-image-card {
+        width: 96vw;
+        padding: 14px;
+    }
+
+    .generated-image-header {
+        align-items: flex-start;
+    }
+
+    .generated-image-actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .generated-image-actions .btn-refresh {
+        justify-content: center;
+        width: 100%;
+    }
+}
